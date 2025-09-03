@@ -4,16 +4,39 @@ import { useState } from 'react'
 export default function Home() {
   const [entry, setEntry] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [analysis, setAnalysis] = useState('')
+  const [showAnalysis, setShowAnalysis] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsLoading(true)
+    setShowAnalysis(false)
     
-    setTimeout(() => {
-      setEntry('')
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          entry,
+          category: 'general'
+        }),
+      })
+      
+      const data = await response.json()
+      
+      if (data.analysis) {
+        setAnalysis(data.analysis)
+        setShowAnalysis(true)
+        setEntry('')
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      alert('Failed to analyze. Please try again.')
+    } finally {
       setIsLoading(false)
-      alert('Entry saved! Tomorrow we add AI.')
-    }, 1000)
+    }
   }
 
   const styles = {
@@ -66,12 +89,14 @@ export default function Home() {
       cursor: isLoading || !entry.trim() ? 'not-allowed' : 'pointer',
       marginTop: '1rem'
     },
-    comingSoon: {
-      marginTop: '3rem',
+    analysisBox: {
+      marginTop: '2rem',
       padding: '1.5rem',
       backgroundColor: '#1F2937',
       borderRadius: '0.5rem',
-      border: '1px solid #374151'
+      border: '1px solid #10B981',
+      whiteSpace: 'pre-wrap',
+      lineHeight: '1.6'
     }
   }
 
@@ -102,21 +127,18 @@ export default function Home() {
             disabled={isLoading || !entry.trim()}
             style={styles.button}
           >
-            {isLoading ? 'Processing...' : 'Analyze My Thoughts'}
+            {isLoading ? 'Analyzing...' : 'Analyze My Thoughts'}
           </button>
         </form>
 
-        <div style={styles.comingSoon}>
-          <h2 style={{fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.75rem'}}>
-            Coming Tomorrow:
-          </h2>
-          <ul style={{color: '#9CA3AF', listStyle: 'none'}}>
-            <li style={{marginBottom: '0.5rem'}}>✓ AI analysis of your entries</li>
-            <li style={{marginBottom: '0.5rem'}}>✓ Pattern recognition</li>
-            <li style={{marginBottom: '0.5rem'}}>✓ Actionable insights</li>
-            <li>✓ Save to database</li>
-          </ul>
-        </div>
+        {showAnalysis && (
+          <div style={styles.analysisBox}>
+            <h2 style={{fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#10B981'}}>
+              AI Analysis:
+            </h2>
+            <div>{analysis}</div>
+          </div>
+        )}
       </div>
     </main>
   )

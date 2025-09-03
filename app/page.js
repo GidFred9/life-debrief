@@ -86,7 +86,7 @@ export default function Home() {
         <form onSubmit={handleSubmit}>
           <div>
             <label style={styles.label}>
-              What's on your mind?
+              What&apos;s on your mind?
             </label>
             <textarea
               value={entry}

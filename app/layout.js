@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'Life Debrief - AI Journaling',
-  description: 'Journal with AI that gives real insights',
+  title: 'Mindbloss',
+  description: 'Transform mental clutter into crystal clarity',
 }
 
 export default function RootLayout({ children }) {

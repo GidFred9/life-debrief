@@ -1,5 +1,44 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+
+// Character configurations
+const characters = {
+  nova: {
+    id: 'nova',
+    displayName: 'Nova',
+    tagline: 'Your momentum coach',
+    emoji: '⚡',
+    color: '#f59e0b',
+  },
+  sol: {
+    id: 'sol',
+    displayName: 'Sol',
+    tagline: 'Your compassionate listener',
+    emoji: '🌅',
+    color: '#8b5cf6',
+  },
+  atlas: {
+    id: 'atlas',
+    displayName: 'Atlas',
+    tagline: 'Your values guide',
+    emoji: '🏔️',
+    color: '#059669',
+  },
+  wren: {
+    id: 'wren',
+    displayName: 'Wren',
+    tagline: 'Your evening companion',
+    emoji: '🌙',
+    color: '#6366f1',
+  },
+  sage: {
+    id: 'sage',
+    displayName: 'Sage',
+    tagline: 'Your pattern spotter',
+    emoji: '📊',
+    color: '#a855f7',
+  }
+}
 
 export default function Home() {
   const [entry, setEntry] = useState('')
@@ -9,15 +48,14 @@ export default function Home() {
   const [aiMode, setAiMode] = useState('reflection')
   const [entries, setEntries] = useState([])
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [showModeDropdown, setShowModeDropdown] = useState(false)
   const [currentTemplate, setCurrentTemplate] = useState(null)
   const [darkMode, setDarkMode] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(true)
   const [moodValue, setMoodValue] = useState(5)
   const [selectedEmotions, setSelectedEmotions] = useState([])
   const [savedIndicator, setSavedIndicator] = useState(false)
+  const [selectedCharacter, setSelectedCharacter] = useState('sol')
 
-  // Templates for evidence-based approaches
   const templates = {
     cbt: {
       name: 'CBT Thought Record',
@@ -47,18 +85,19 @@ export default function Home() {
   ]
 
   useEffect(() => {
-    // Load saved preferences
     const savedDarkMode = localStorage.getItem('darkMode') === 'true'
     const savedEntries = JSON.parse(localStorage.getItem('journalEntries') || '[]')
     const hasSeenOnboarding = localStorage.getItem('hasSeenOnboarding') === 'true'
+    const savedCharacter = localStorage.getItem('preferredCharacter')
     
     setDarkMode(savedDarkMode)
     setEntries(savedEntries)
     setShowOnboarding(!hasSeenOnboarding)
+    if (savedCharacter) setSelectedCharacter(savedCharacter)
   }, [])
 
   const saveEntry = (newEntry) => {
-    const updatedEntries = [newEntry, ...entries].slice(0, 100) // Keep last 100
+    const updatedEntries = [newEntry, ...entries].slice(0, 100)
     setEntries(updatedEntries)
     localStorage.setItem('journalEntries', JSON.stringify(updatedEntries))
     setSavedIndicator(true)
@@ -78,7 +117,8 @@ export default function Home() {
           entry: currentTemplate ? `${templates[currentTemplate].name}:\n${entry}` : entry,
           mode: aiMode,
           mood: moodValue,
-          emotions: selectedEmotions
+          emotions: selectedEmotions,
+          characterId: selectedCharacter
         }),
       })
       
@@ -93,6 +133,7 @@ export default function Home() {
           text: entry,
           response: data.analysis,
           mode: aiMode,
+          character: selectedCharacter,
           template: currentTemplate,
           mood: moodValue,
           emotions: selectedEmotions,
@@ -120,7 +161,8 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           entry: `Quick reframe needed: ${entry}`,
-          mode: 'reframe'
+          mode: 'reframe',
+          characterId: selectedCharacter
         }),
       })
       
@@ -151,7 +193,7 @@ export default function Home() {
     if (entries.length === 0) return
     
     setIsLoading(true)
-    const weekEntries = entries.slice(0, 20) // Last 20 entries
+    const weekEntries = entries.slice(0, 20)
     const themes = weekEntries.map(e => `${e.timestamp}: ${e.text.substring(0, 100)}`).join('\n')
     
     try {
@@ -160,7 +202,8 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           entry: `Weekly recap request. Analyze themes, patterns, wins, and suggest 3 actions:\n${themes}`,
-          mode: 'summary'
+          mode: 'summary',
+          characterId: 'sage'
         }),
       })
       
@@ -184,6 +227,8 @@ export default function Home() {
       default: return '#8b5cf6'
     }
   }
+
+  const getCurrentCharacter = () => characters[selectedCharacter] || characters.sol
 
   const styles = {
     main: {
@@ -228,9 +273,7 @@ export default function Home() {
       padding: '0.5rem 1rem',
       borderRadius: '0.375rem',
       background: active ? (darkMode ? '#1f1f1f' : 'white') : 'transparent',
-      color: active 
-        ? getModeColor(aiMode)
-        : (darkMode ? '#9ca3af' : '#6b7280'),
+      color: active ? getModeColor(aiMode) : (darkMode ? '#9ca3af' : '#6b7280'),
       border: 'none',
       cursor: 'pointer',
       fontSize: '0.875rem',
@@ -251,7 +294,8 @@ export default function Home() {
       gap: '1.5rem',
       maxWidth: '900px',
       margin: '0 auto',
-      width: '100%'
+      width: '100%',
+      overflowY: 'auto'
     },
     heroSection: {
       textAlign: 'center',
@@ -270,13 +314,18 @@ export default function Home() {
     heroSubtitle: {
       fontSize: '1.125rem',
       color: darkMode ? '#9ca3af' : '#6b7280',
+      marginBottom: '0.5rem'
+    },
+    heroProof: {
+      fontSize: '0.9rem',
+      color: darkMode ? '#9ca3af' : '#6b7280',
       marginBottom: '1.5rem'
     },
     templateGrid: {
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
       gap: '0.75rem',
-      marginBottom: '1.5rem'
+      marginBottom: '1rem'
     },
     templateCard: (active) => ({
       padding: '0.875rem',
@@ -295,6 +344,38 @@ export default function Home() {
       gap: '0.5rem',
       boxShadow: active ? '0 4px 12px rgba(139, 92, 246, 0.2)' : '0 1px 3px rgba(0,0,0,0.05)'
     }),
+    characterSelector: {
+      marginBottom: '1.5rem',
+      padding: '1rem',
+      background: darkMode ? '#1f1f1f' : '#fafaf9',
+      borderRadius: '0.75rem',
+      border: darkMode ? '1px solid #374151' : '1px solid #e5e7eb'
+    },
+    characterLabel: {
+      fontSize: '0.875rem',
+      fontWeight: '600',
+      marginBottom: '0.75rem',
+      color: darkMode ? '#d1d5db' : '#4b5563',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem'
+    },
+    characterGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+      gap: '0.75rem'
+    },
+    characterCard: {
+      padding: '0.75rem',
+      borderRadius: '0.5rem',
+      cursor: 'pointer',
+      transition: 'all 0.2s',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '0.5rem',
+      textAlign: 'center'
+    },
     journalCard: {
       background: darkMode ? '#262626' : 'white',
       borderRadius: '0.75rem',
@@ -324,7 +405,7 @@ export default function Home() {
     emotionChip: (selected) => ({
       padding: '0.375rem 0.75rem',
       background: selected 
-        ? getModeColor(aiMode)
+        ? getCurrentCharacter().color
         : (darkMode ? '#374151' : '#f3f4f6'),
       color: selected ? 'white' : (darkMode ? '#d1d5db' : '#6b7280'),
       borderRadius: '9999px',
@@ -357,7 +438,7 @@ export default function Home() {
     },
     primaryButton: {
       padding: '0.75rem 2rem',
-      background: getModeColor(aiMode),
+      background: getCurrentCharacter().color,
       color: 'white',
       border: 'none',
       borderRadius: '0.5rem',
@@ -374,8 +455,8 @@ export default function Home() {
     secondaryButton: {
       padding: '0.75rem 1.5rem',
       background: 'transparent',
-      color: getModeColor(aiMode),
-      border: `2px solid ${getModeColor(aiMode)}`,
+      color: getCurrentCharacter().color,
+      border: `2px solid ${getCurrentCharacter().color}`,
       borderRadius: '0.5rem',
       fontSize: '0.875rem',
       fontWeight: '600',
@@ -395,7 +476,7 @@ export default function Home() {
     responseTitle: {
       fontSize: '1.125rem',
       fontWeight: '600',
-      color: getModeColor(aiMode),
+      color: getCurrentCharacter().color,
       marginBottom: '1rem',
       display: 'flex',
       alignItems: 'center',
@@ -429,8 +510,9 @@ export default function Home() {
       cursor: 'pointer',
       background: darkMode ? '#262626' : 'white',
       borderRadius: '0.5rem 0 0 0.5rem',
-      border: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-      borderRight: 'none',
+      borderTop: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
+      borderBottom: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
+      borderLeft: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
       transition: 'all 0.2s'
     },
     entryCard: {
@@ -440,7 +522,7 @@ export default function Home() {
       marginBottom: '0.5rem',
       fontSize: '0.875rem',
       color: darkMode ? '#d1d5db' : '#4b5563',
-      borderLeft: `3px solid ${getModeColor(aiMode)}`,
+      borderLeft: `3px solid ${getCurrentCharacter().color}`,
       cursor: 'pointer',
       transition: 'all 0.2s'
     },
@@ -503,8 +585,8 @@ export default function Home() {
         }
         
         .journal-textarea:focus {
-          border-color: ${getModeColor(aiMode)} !important;
-          box-shadow: 0 0 0 3px ${getModeColor(aiMode)}22 !important;
+          border-color: ${getCurrentCharacter().color} !important;
+          box-shadow: 0 0 0 3px ${getCurrentCharacter().color}22 !important;
         }
         
         .hover-lift:hover {
@@ -560,7 +642,10 @@ export default function Home() {
             
             <div style={styles.actionButtons}>
               <button 
-                onClick={() => setDarkMode(!darkMode)} 
+                onClick={() => {
+                  setDarkMode(!darkMode)
+                  localStorage.setItem('darkMode', !darkMode)
+                }} 
                 style={styles.iconButton}
                 title="Toggle dark mode"
               >
@@ -587,6 +672,9 @@ export default function Home() {
                   </h2>
                   <p style={styles.heroSubtitle}>
                     Evidence-based journaling that actually helps
+                  </p>
+                  <p style={styles.heroProof}>
+                    Guided check-ins using CBT/ACT prompts, mood trends, and weekly recaps
                   </p>
                   <button
                     onClick={() => {
@@ -617,6 +705,47 @@ export default function Home() {
                       <span>{template.name}</span>
                     </button>
                   ))}
+                </div>
+              )}
+              
+              {/* Character Selection */}
+              {!showOnboarding && (
+                <div style={styles.characterSelector}>
+                  <p style={styles.characterLabel}>
+                    <span>{getCurrentCharacter().emoji}</span>
+                    Today's guide:
+                  </p>
+                  <div style={styles.characterGrid}>
+                    {Object.values(characters).map(character => (
+                      <button
+                        key={character.id}
+                        onClick={() => {
+                          setSelectedCharacter(character.id)
+                          localStorage.setItem('preferredCharacter', character.id)
+                        }}
+                        style={{
+                          ...styles.characterCard,
+                          border: selectedCharacter === character.id 
+                            ? `2px solid ${character.color}` 
+                            : darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
+                          background: selectedCharacter === character.id
+                            ? `${character.color}15`
+                            : darkMode ? '#262626' : 'white'
+                        }}
+                        className="hover-lift"
+                      >
+                        <span style={{fontSize: '1.5rem'}}>{character.emoji}</span>
+                        <div>
+                          <div style={{fontWeight: '600', fontSize: '0.9rem', color: darkMode ? '#f3f4f6' : '#111827'}}>
+                            {character.displayName}
+                          </div>
+                          <div style={{fontSize: '0.75rem', opacity: 0.7}}>
+                            {character.tagline}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
               
@@ -694,7 +823,7 @@ export default function Home() {
                         disabled={isLoading || !entry.trim()}
                         style={styles.primaryButton}
                       >
-                        {isLoading ? 'Processing...' : 'Reflect with me'}
+                        {isLoading ? 'Processing...' : `Talk to ${getCurrentCharacter().displayName}`}
                       </button>
                     </div>
                   </div>
@@ -705,8 +834,8 @@ export default function Home() {
               {showAnalysis && (
                 <div style={styles.responseCard}>
                   <h3 style={styles.responseTitle}>
-                    <span style={{animation: 'pulse 2s infinite'}}>✨</span>
-                    {aiMode === 'reflection' ? 'Your Reflection' : 'Response'}
+                    <span>{getCurrentCharacter().emoji}</span>
+                    {getCurrentCharacter().displayName} says:
                   </h3>
                   <div style={styles.responseText}>{analysis}</div>
                 </div>
@@ -738,7 +867,7 @@ export default function Home() {
                     }}
                     disabled={entries.length === 0}
                   >
-                    📊 Weekly Recap
+                    📊 Weekly Recap (with Sage)
                   </button>
                   
                   <h3 style={{fontSize: '0.875rem', fontWeight: '600', marginBottom: '1rem', color: darkMode ? '#d1d5db' : '#4b5563'}}>
@@ -750,9 +879,10 @@ export default function Home() {
                       <div key={entry.id} style={styles.entryCard} className="hover-lift">
                         <div style={{fontSize: '0.75rem', opacity: 0.7, marginBottom: '0.25rem'}}>
                           {entry.timestamp} • Mood: {entry.mood}/10
+                          {entry.character && ` • ${characters[entry.character]?.emoji || ''}`}
                         </div>
                         <div>{entry.text.substring(0, 80)}...</div>
-                        {entry.emotions.length > 0 && (
+                        {entry.emotions && entry.emotions.length > 0 && (
                           <div style={{fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.7}}>
                             {entry.emotions.join(', ')}
                           </div>

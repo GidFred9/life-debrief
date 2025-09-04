@@ -1,148 +1,267 @@
 'use client'
 import { useState, useEffect } from 'react'
 
-// Character configurations
+// Character system with full protocols
 const characters = {
   nova: {
     id: 'nova',
     displayName: 'Nova',
-    tagline: 'Your momentum coach',
+    tagline: 'Momentum Coach',
     emoji: '⚡',
     color: '#f59e0b',
+    greeting: "Let's build some momentum. What happened?"
   },
   sol: {
     id: 'sol',
     displayName: 'Sol',
-    tagline: 'Your compassionate listener',
+    tagline: 'Compassionate Listener',
     emoji: '🌅',
     color: '#8b5cf6',
+    greeting: "I'm here to listen. What's weighing on your heart?"
   },
   atlas: {
     id: 'atlas',
     displayName: 'Atlas',
-    tagline: 'Your values guide',
+    tagline: 'Values Guide',
     emoji: '🏔️',
     color: '#059669',
+    greeting: "Let's connect with what matters most to you."
   },
   wren: {
     id: 'wren',
     displayName: 'Wren',
-    tagline: 'Your evening companion',
+    tagline: 'Evening Companion',
     emoji: '🌙',
     color: '#6366f1',
+    greeting: "The day is winding down. Let's release what you're carrying."
   },
   sage: {
     id: 'sage',
     displayName: 'Sage',
-    tagline: 'Your pattern spotter',
+    tagline: 'Pattern Spotter',
     emoji: '📊',
     color: '#a855f7',
+    greeting: "I've noticed some patterns we could explore."
   }
 }
 
+// Protocol steps
+const protocols = {
+  cbt_thought_record: {
+    name: 'Thought Record',
+    duration: '2-3 min',
+    steps: [
+      { prompt: "What happened? (1-2 sentences)", type: 'text', key: 'situation' },
+      { prompt: "What was the loudest thought?", type: 'text', key: 'thought' },
+      { 
+        prompt: "Which distortion fits best?", 
+        type: 'chips', 
+        key: 'distortion',
+        options: ['All-or-nothing', 'Catastrophizing', 'Mind-reading', 'Should statements', 'Labeling']
+      },
+      { prompt: "Evidence for this thought? Evidence against?", type: 'text', key: 'evidence' },
+      { prompt: "What's a more balanced thought?", type: 'text', key: 'balanced' },
+      { prompt: "Pick one 5-minute action to support that new thought", type: 'text', key: 'action' }
+    ]
+  },
+  reflective_listening: {
+    name: 'Deep Listening',
+    duration: '2-3 min',
+    steps: [
+      { prompt: "What's weighing on your heart right now?", type: 'text', key: 'feeling' },
+      { prompt: "What felt heaviest in that moment?", type: 'text', key: 'heavy' },
+      { 
+        prompt: "Do you need comfort or clarity right now?", 
+        type: 'choice', 
+        key: 'need',
+        options: ['Comfort', 'Clarity']
+      }
+    ]
+  },
+  values_check: {
+    name: 'Values Alignment',
+    duration: '2 min',
+    steps: [
+      { 
+        prompt: "Which value feels most relevant here?", 
+        type: 'chips', 
+        key: 'value',
+        options: ['Courage', 'Honesty', 'Learning', 'Kindness', 'Health', 'Growth']
+      },
+      { prompt: "One action aligned with this value you can do today?", type: 'text', key: 'action' }
+    ]
+  },
+  grounding_54321: {
+    name: '5-4-3-2-1 Grounding',
+    duration: '3 min',
+    steps: [
+      { prompt: "5 things you can see right now", type: 'text', key: 'see' },
+      { prompt: "4 things you can touch", type: 'text', key: 'touch' },
+      { prompt: "3 things you can hear", type: 'text', key: 'hear' },
+      { prompt: "2 things you can smell", type: 'text', key: 'smell' },
+      { prompt: "1 thing you can taste", type: 'text', key: 'taste' }
+    ]
+  },
+  worry_box: {
+    name: 'Worry Box',
+    duration: '2 min',
+    steps: [
+      { prompt: "What worries can we set aside for tomorrow?", type: 'text', key: 'worries' },
+      { prompt: "Imagine placing each worry in a box. What goes in first?", type: 'text', key: 'first' },
+      { prompt: "The box is sealed until tomorrow. How does that feel?", type: 'text', key: 'feeling' }
+    ]
+  },
+  gratitude_practice: {
+    name: 'Gratitude Practice',
+    duration: '2 min',
+    steps: [
+      { prompt: "Three specific things you appreciated today", type: 'text', key: 'gratitude' },
+      { prompt: "How did these make you feel?", type: 'text', key: 'feeling' }
+    ]
+  }
+}
+
+// Mood-based routing
+function routeToGuide(mood, emotions, hour = new Date().getHours()) {
+  const isEvening = hour >= 20 || hour <= 6
+  
+  // Crisis detection
+  if (emotions.includes('hopeless') || mood <= 2) {
+    return { character: 'atlas', protocol: 'values_check', priority: 'high' }
+  }
+  
+  // Evening + anxious → Wren
+  if (isEvening && emotions.some(e => ['anxious', 'overwhelmed', 'stressed'].includes(e))) {
+    return { character: 'wren', protocol: 'grounding_54321' }
+  }
+  
+  // Sad/lonely → Sol
+  if (emotions.some(e => ['sad', 'lonely', 'hurt', 'grief'].includes(e))) {
+    return { character: 'sol', protocol: 'reflective_listening' }
+  }
+  
+  // Angry/frustrated → Nova
+  if (emotions.some(e => ['angry', 'frustrated', 'irritated'].includes(e))) {
+    return { character: 'nova', protocol: 'cbt_thought_record' }
+  }
+  
+  // Low mood → Atlas
+  if (mood <= 3) {
+    return { character: 'atlas', protocol: 'values_check' }
+  }
+  
+  // Positive/neutral → Sage
+  if (mood >= 7) {
+    return { character: 'sage', protocol: 'gratitude_practice' }
+  }
+  
+  // Default
+  return { character: 'sol', protocol: 'reflective_listening' }
+}
+
 export default function Home() {
-  const [entry, setEntry] = useState('')
+  // Core states
+  const [stage, setStage] = useState('welcome') // welcome, protocol, complete
+  const [mood, setMood] = useState(5)
+  const [selectedEmotions, setSelectedEmotions] = useState([])
+  const [activeGuide, setActiveGuide] = useState(null)
+  const [activeProtocol, setActiveProtocol] = useState(null)
+  const [protocolStep, setProtocolStep] = useState(0)
+  const [protocolResponses, setProtocolResponses] = useState({})
+  const [currentResponse, setCurrentResponse] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [analysis, setAnalysis] = useState('')
-  const [showAnalysis, setShowAnalysis] = useState(false)
-  const [aiMode, setAiMode] = useState('reflection')
   const [entries, setEntries] = useState([])
-  const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [currentTemplate, setCurrentTemplate] = useState(null)
   const [darkMode, setDarkMode] = useState(false)
-  const [showOnboarding, setShowOnboarding] = useState(true)
-  const [moodValue, setMoodValue] = useState(5)
-  const [selectedEmotions, setSelectedEmotions] = useState([])
-  const [savedIndicator, setSavedIndicator] = useState(false)
-  const [selectedCharacter, setSelectedCharacter] = useState('sol')
+  const [showCrisisResources, setShowCrisisResources] = useState(false)
 
-  const templates = {
-    cbt: {
-      name: 'CBT Thought Record',
-      prompt: 'Situation: \nAutomatic thought: \nEmotion (0-10): \nEvidence for: \nEvidence against: \nBalanced thought: ',
-      icon: '🧠'
-    },
-    act: {
-      name: 'ACT Values Check',
-      prompt: 'What story is my mind telling me?\nWhat matters to me in this situation?\nOne small step aligned with my values: ',
-      icon: '🎯'
-    },
-    gratitude: {
-      name: 'Gratitude Practice',
-      prompt: 'Three things I appreciated today:\n1. \n2. \n3. \nHow did these make me feel?',
-      icon: '🙏'
-    },
-    grounding: {
-      name: '5-4-3-2-1 Grounding',
-      prompt: '5 things I can see:\n4 things I can touch:\n3 things I can hear:\n2 things I can smell:\n1 thing I can taste:',
-      icon: '🌍'
-    }
-  }
-
-  const emotions = [
-    'anxious', 'calm', 'frustrated', 'hopeful', 'sad', 'content', 
-    'angry', 'grateful', 'overwhelmed', 'focused', 'lonely', 'connected'
+  const emotionOptions = [
+    'anxious', 'overwhelmed', 'stressed', 'worried',
+    'sad', 'lonely', 'hurt', 'grief',
+    'angry', 'frustrated', 'irritated', 'annoyed',
+    'happy', 'grateful', 'content', 'peaceful',
+    'confused', 'lost', 'stuck', 'numb',
+    'hopeless', 'exhausted', 'disconnected'
   ]
 
   useEffect(() => {
     const savedDarkMode = localStorage.getItem('darkMode') === 'true'
     const savedEntries = JSON.parse(localStorage.getItem('journalEntries') || '[]')
-    const hasSeenOnboarding = localStorage.getItem('hasSeenOnboarding') === 'true'
-    const savedCharacter = localStorage.getItem('preferredCharacter')
-    
     setDarkMode(savedDarkMode)
     setEntries(savedEntries)
-    setShowOnboarding(!hasSeenOnboarding)
-    if (savedCharacter) setSelectedCharacter(savedCharacter)
   }, [])
 
-  const saveEntry = (newEntry) => {
-    const updatedEntries = [newEntry, ...entries].slice(0, 100)
-    setEntries(updatedEntries)
-    localStorage.setItem('journalEntries', JSON.stringify(updatedEntries))
-    setSavedIndicator(true)
-    setTimeout(() => setSavedIndicator(false), 2000)
+  const startProtocol = () => {
+    if (selectedEmotions.length === 0) return
+    
+    // Check for crisis keywords
+    if (selectedEmotions.includes('hopeless') || mood <= 2) {
+      setShowCrisisResources(true)
+    }
+    
+    const route = routeToGuide(mood, selectedEmotions)
+    setActiveGuide(characters[route.character])
+    setActiveProtocol(protocols[route.protocol])
+    setProtocolStep(0)
+    setProtocolResponses({})
+    setStage('protocol')
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleProtocolNext = async () => {
+    const currentStep = activeProtocol.steps[protocolStep]
+    const newResponses = { ...protocolResponses, [currentStep.key]: currentResponse }
+    setProtocolResponses(newResponses)
+    
+    if (protocolStep < activeProtocol.steps.length - 1) {
+      setProtocolStep(protocolStep + 1)
+      setCurrentResponse('')
+    } else {
+      // Protocol complete - get AI response
+      await completeProtocol(newResponses)
+    }
+  }
+
+  const completeProtocol = async (responses) => {
     setIsLoading(true)
-    setShowAnalysis(false)
+    
+    const protocolSummary = Object.entries(responses)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('\n')
     
     try {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          entry: currentTemplate ? `${templates[currentTemplate].name}:\n${entry}` : entry,
-          mode: aiMode,
-          mood: moodValue,
-          emotions: selectedEmotions,
-          characterId: selectedCharacter
-        }),
+        body: JSON.stringify({
+          entry: protocolSummary,
+          characterId: activeGuide.id,
+          protocol: activeProtocol.name,
+          mood,
+          emotions: selectedEmotions
+        })
       })
       
       const data = await response.json()
-      
       if (data.analysis) {
         setAnalysis(data.analysis)
-        setShowAnalysis(true)
         
+        // Save entry
         const newEntry = {
           id: Date.now(),
-          text: entry,
-          response: data.analysis,
-          mode: aiMode,
-          character: selectedCharacter,
-          template: currentTemplate,
-          mood: moodValue,
+          guide: activeGuide.displayName,
+          protocol: activeProtocol.name,
+          responses: responses,
+          analysis: data.analysis,
+          mood,
           emotions: selectedEmotions,
           timestamp: new Date().toLocaleString()
         }
-        saveEntry(newEntry)
-        setEntry('')
-        setCurrentTemplate(null)
-        setSelectedEmotions([])
+        
+        const updatedEntries = [newEntry, ...entries].slice(0, 100)
+        setEntries(updatedEntries)
+        localStorage.setItem('journalEntries', JSON.stringify(updatedEntries))
+        
+        setStage('complete')
       }
     } catch (error) {
       console.error('Error:', error)
@@ -151,425 +270,205 @@ export default function Home() {
     }
   }
 
-  const handleQuickReframe = async () => {
-    if (!entry.trim()) return
-    setIsLoading(true)
-    
-    try {
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          entry: `Quick reframe needed: ${entry}`,
-          mode: 'reframe',
-          characterId: selectedCharacter
-        }),
-      })
-      
-      const data = await response.json()
-      if (data.analysis) {
-        setAnalysis(data.analysis)
-        setShowAnalysis(true)
-      }
-    } catch (error) {
-      console.error('Error:', error)
-    } finally {
-      setIsLoading(false)
-    }
+  const reset = () => {
+    setStage('welcome')
+    setMood(5)
+    setSelectedEmotions([])
+    setActiveGuide(null)
+    setActiveProtocol(null)
+    setProtocolStep(0)
+    setProtocolResponses({})
+    setCurrentResponse('')
+    setAnalysis('')
   }
-
-  const exportData = () => {
-    const dataStr = JSON.stringify(entries, null, 2)
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr)
-    const exportFileDefaultName = `mindbloss-export-${new Date().toISOString().split('T')[0]}.json`
-    
-    const linkElement = document.createElement('a')
-    linkElement.setAttribute('href', dataUri)
-    linkElement.setAttribute('download', exportFileDefaultName)
-    linkElement.click()
-  }
-
-  const generateWeeklyRecap = async () => {
-    if (entries.length === 0) return
-    
-    setIsLoading(true)
-    const weekEntries = entries.slice(0, 20)
-    const themes = weekEntries.map(e => `${e.timestamp}: ${e.text.substring(0, 100)}`).join('\n')
-    
-    try {
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          entry: `Weekly recap request. Analyze themes, patterns, wins, and suggest 3 actions:\n${themes}`,
-          mode: 'summary',
-          characterId: 'sage'
-        }),
-      })
-      
-      const data = await response.json()
-      if (data.analysis) {
-        setAnalysis(data.analysis)
-        setShowAnalysis(true)
-      }
-    } catch (error) {
-      console.error('Error:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const getModeColor = (mode) => {
-    switch(mode) {
-      case 'reflection': return '#8b5cf6'
-      case 'chat': return '#3b82f6'
-      case 'resources': return '#10b981'
-      default: return '#8b5cf6'
-    }
-  }
-
-  const getCurrentCharacter = () => characters[selectedCharacter] || characters.sol
 
   const styles = {
     main: {
       minHeight: '100vh',
       background: darkMode 
-        ? 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)'
-        : 'linear-gradient(135deg, #fafaf9 0%, #f3f4f6 100%)',
-      padding: '0',
-      fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-      position: 'relative',
-      overflow: 'hidden',
+        ? 'linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%)'
+        : 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 100%)',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      padding: '2rem',
       transition: 'background 0.3s'
     },
     container: {
-      maxWidth: '100%',
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'column'
+      maxWidth: '600px',
+      margin: '0 auto'
     },
-    topNav: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: '1rem 2rem',
-      borderBottom: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-      background: darkMode ? '#1f1f1f' : 'white'
+    header: {
+      textAlign: 'center',
+      marginBottom: '2rem'
     },
     logo: {
       fontSize: '1.5rem',
       fontWeight: '700',
-      color: darkMode ? '#f3f4f6' : '#111827',
-      letterSpacing: '-0.025em'
-    },
-    modeSelector: {
-      display: 'flex',
-      gap: '0.5rem',
-      padding: '0.25rem',
-      background: darkMode ? '#374151' : '#f3f4f6',
-      borderRadius: '0.5rem'
-    },
-    modeTab: (active) => ({
-      padding: '0.5rem 1rem',
-      borderRadius: '0.375rem',
-      background: active ? (darkMode ? '#1f1f1f' : 'white') : 'transparent',
-      color: active ? getModeColor(aiMode) : (darkMode ? '#9ca3af' : '#6b7280'),
-      border: 'none',
-      cursor: 'pointer',
-      fontSize: '0.875rem',
-      fontWeight: active ? '600' : '500',
-      transition: 'all 0.2s',
-      boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-    }),
-    mainContent: {
-      flex: 1,
-      display: 'flex',
-      overflow: 'hidden'
-    },
-    centerColumn: {
-      flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      padding: '2rem',
-      gap: '1.5rem',
-      maxWidth: '900px',
-      margin: '0 auto',
-      width: '100%',
-      overflowY: 'auto'
-    },
-    heroSection: {
-      textAlign: 'center',
-      marginBottom: '1.5rem',
-      opacity: showOnboarding ? 1 : 0,
-      transition: 'opacity 0.5s',
-      display: showOnboarding ? 'block' : 'none'
-    },
-    heroTitle: {
-      fontSize: '2rem',
-      fontWeight: '700',
-      color: darkMode ? '#f3f4f6' : '#111827',
-      marginBottom: '0.5rem',
-      lineHeight: '1.2'
-    },
-    heroSubtitle: {
-      fontSize: '1.125rem',
-      color: darkMode ? '#9ca3af' : '#6b7280',
+      color: darkMode ? '#fff' : '#111',
       marginBottom: '0.5rem'
     },
-    heroProof: {
-      fontSize: '0.9rem',
-      color: darkMode ? '#9ca3af' : '#6b7280',
+    card: {
+      background: darkMode ? '#1f1f1f' : 'white',
+      borderRadius: '1rem',
+      padding: '2rem',
+      boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
       marginBottom: '1.5rem'
     },
-    templateGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-      gap: '0.75rem',
-      marginBottom: '1rem'
-    },
-    templateCard: (active) => ({
-      padding: '0.875rem',
-      background: active 
-        ? getModeColor(aiMode) 
-        : (darkMode ? '#374151' : 'white'),
-      color: active ? 'white' : (darkMode ? '#d1d5db' : '#4b5563'),
-      border: darkMode ? '1px solid #4b5563' : '1px solid #e5e7eb',
-      borderRadius: '0.5rem',
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-      fontSize: '0.875rem',
-      fontWeight: '500',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.5rem',
-      boxShadow: active ? '0 4px 12px rgba(139, 92, 246, 0.2)' : '0 1px 3px rgba(0,0,0,0.05)'
-    }),
-    characterSelector: {
-      marginBottom: '1.5rem',
-      padding: '1rem',
-      background: darkMode ? '#1f1f1f' : '#fafaf9',
-      borderRadius: '0.75rem',
-      border: darkMode ? '1px solid #374151' : '1px solid #e5e7eb'
-    },
-    characterLabel: {
-      fontSize: '0.875rem',
-      fontWeight: '600',
-      marginBottom: '0.75rem',
-      color: darkMode ? '#d1d5db' : '#4b5563',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.5rem'
-    },
-    characterGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-      gap: '0.75rem'
-    },
-    characterCard: {
-      padding: '0.75rem',
-      borderRadius: '0.5rem',
-      cursor: 'pointer',
-      transition: 'all 0.2s',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: '0.5rem',
-      textAlign: 'center'
-    },
-    journalCard: {
-      background: darkMode ? '#262626' : 'white',
-      borderRadius: '0.75rem',
-      padding: '1.5rem',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-      flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      border: darkMode ? '1px solid #374151' : '1px solid #e5e7eb'
-    },
     moodSection: {
+      marginBottom: '2rem'
+    },
+    moodLabel: {
+      fontSize: '1.125rem',
+      fontWeight: '600',
       marginBottom: '1rem',
-      padding: '1rem',
-      background: darkMode ? '#1f1f1f' : '#f9fafb',
-      borderRadius: '0.5rem'
+      color: darkMode ? '#fff' : '#111'
     },
     moodSlider: {
       width: '100%',
-      marginTop: '0.5rem'
+      marginBottom: '0.5rem'
     },
-    emotionChips: {
-      display: 'flex',
-      flexWrap: 'wrap',
+    moodValue: {
+      textAlign: 'center',
+      fontSize: '2rem',
+      fontWeight: '700',
+      color: mood <= 3 ? '#ef4444' : mood <= 6 ? '#f59e0b' : '#10b981',
+      marginBottom: '1rem'
+    },
+    emotionGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
       gap: '0.5rem',
-      marginTop: '0.5rem'
+      marginTop: '1rem'
     },
     emotionChip: (selected) => ({
-      padding: '0.375rem 0.75rem',
+      padding: '0.5rem 1rem',
       background: selected 
-        ? getCurrentCharacter().color
-        : (darkMode ? '#374151' : '#f3f4f6'),
-      color: selected ? 'white' : (darkMode ? '#d1d5db' : '#6b7280'),
-      borderRadius: '9999px',
+        ? (darkMode ? '#6366f1' : '#818cf8')
+        : (darkMode ? '#2a2a2a' : '#f3f4f6'),
+      color: selected ? 'white' : (darkMode ? '#ccc' : '#4b5563'),
+      border: 'none',
+      borderRadius: '2rem',
       fontSize: '0.875rem',
       cursor: 'pointer',
-      transition: 'all 0.2s',
-      border: 'none'
+      transition: 'all 0.2s'
     }),
-    textarea: {
-      width: '100%',
-      minHeight: '300px',
-      padding: '1rem',
-      backgroundColor: darkMode ? '#1f1f1f' : '#fafaf9',
-      color: darkMode ? '#f3f4f6' : '#111827',
-      border: `2px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
-      borderRadius: '0.5rem',
-      fontSize: '1rem',
-      lineHeight: '1.75',
-      resize: 'vertical',
-      outline: 'none',
-      transition: 'border-color 0.2s',
-      fontFamily: 'inherit'
-    },
-    buttonRow: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginTop: '1rem',
-      gap: '1rem'
-    },
     primaryButton: {
-      padding: '0.75rem 2rem',
-      background: getCurrentCharacter().color,
+      width: '100%',
+      padding: '1rem',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       color: 'white',
       border: 'none',
       borderRadius: '0.5rem',
       fontSize: '1rem',
       fontWeight: '600',
-      cursor: isLoading || !entry.trim() ? 'not-allowed' : 'pointer',
-      opacity: isLoading || !entry.trim() ? 0.5 : 1,
-      transition: 'all 0.2s',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+      cursor: 'pointer',
+      marginTop: '1.5rem'
+    },
+    guideCard: {
       display: 'flex',
       alignItems: 'center',
-      gap: '0.5rem'
-    },
-    secondaryButton: {
-      padding: '0.75rem 1.5rem',
-      background: 'transparent',
-      color: getCurrentCharacter().color,
-      border: `2px solid ${getCurrentCharacter().color}`,
-      borderRadius: '0.5rem',
-      fontSize: '0.875rem',
-      fontWeight: '600',
-      cursor: 'pointer',
-      transition: 'all 0.2s'
-    },
-    responseCard: {
-      background: darkMode ? '#262626' : 'white',
+      gap: '1rem',
+      padding: '1rem',
+      background: darkMode ? '#2a2a2a' : '#f9fafb',
       borderRadius: '0.75rem',
-      padding: '1.5rem',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-      minHeight: '200px',
-      maxHeight: '500px',
-      overflowY: 'auto',
-      border: darkMode ? '1px solid #374151' : '1px solid #e5e7eb'
+      marginBottom: '1.5rem'
     },
-    responseTitle: {
+    guideEmoji: {
+      fontSize: '2rem'
+    },
+    guideInfo: {
+      flex: 1
+    },
+    guideName: {
       fontSize: '1.125rem',
       fontWeight: '600',
-      color: getCurrentCharacter().color,
-      marginBottom: '1rem',
+      color: darkMode ? '#fff' : '#111'
+    },
+    guideTagline: {
+      fontSize: '0.875rem',
+      color: darkMode ? '#9ca3af' : '#6b7280'
+    },
+    protocolStep: {
+      marginBottom: '1.5rem'
+    },
+    stepProgress: {
       display: 'flex',
-      alignItems: 'center',
+      gap: '0.5rem',
+      marginBottom: '1rem'
+    },
+    stepDot: (active) => ({
+      width: '8px',
+      height: '8px',
+      borderRadius: '50%',
+      background: active ? '#6366f1' : '#d1d5db'
+    }),
+    promptText: {
+      fontSize: '1.125rem',
+      fontWeight: '500',
+      marginBottom: '1rem',
+      color: darkMode ? '#fff' : '#111'
+    },
+    textarea: {
+      width: '100%',
+      minHeight: '100px',
+      padding: '0.75rem',
+      background: darkMode ? '#2a2a2a' : '#f9fafb',
+      color: darkMode ? '#fff' : '#111',
+      border: `1px solid ${darkMode ? '#404040' : '#e5e7eb'}`,
+      borderRadius: '0.5rem',
+      fontSize: '1rem',
+      resize: 'vertical',
+      fontFamily: 'inherit'
+    },
+    optionGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
       gap: '0.5rem'
     },
-    responseText: {
-      color: darkMode ? '#d1d5db' : '#374151',
-      lineHeight: '1.75',
-      fontSize: '1rem',
-      whiteSpace: 'pre-wrap'
-    },
-    sidebar: {
-      width: sidebarOpen ? '320px' : '0',
-      background: darkMode ? '#1f1f1f' : '#fafaf9',
-      borderLeft: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-      padding: sidebarOpen ? '1.5rem' : '0',
-      overflowY: 'auto',
-      transition: 'all 0.3s',
-      position: 'relative'
-    },
-    sidebarToggle: {
-      position: 'absolute',
-      left: '-40px',
-      top: '50%',
-      transform: 'translateY(-50%)',
-      width: '40px',
-      height: '80px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      cursor: 'pointer',
-      background: darkMode ? '#262626' : 'white',
-      borderRadius: '0.5rem 0 0 0.5rem',
-      borderTop: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-      borderBottom: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-      borderLeft: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-      transition: 'all 0.2s'
-    },
-    entryCard: {
+    optionButton: (selected) => ({
       padding: '0.75rem',
-      background: darkMode ? '#374151' : 'white',
+      background: selected ? '#6366f1' : (darkMode ? '#2a2a2a' : 'white'),
+      color: selected ? 'white' : (darkMode ? '#fff' : '#111'),
+      border: `1px solid ${darkMode ? '#404040' : '#e5e7eb'}`,
       borderRadius: '0.5rem',
-      marginBottom: '0.5rem',
-      fontSize: '0.875rem',
-      color: darkMode ? '#d1d5db' : '#4b5563',
-      borderLeft: `3px solid ${getCurrentCharacter().color}`,
       cursor: 'pointer',
       transition: 'all 0.2s'
+    }),
+    analysisCard: {
+      background: darkMode ? '#2a2a2a' : '#f9fafb',
+      padding: '1.5rem',
+      borderRadius: '0.75rem',
+      marginTop: '1.5rem'
+    },
+    analysisText: {
+      lineHeight: '1.6',
+      color: darkMode ? '#d1d5db' : '#374151'
+    },
+    crisisBanner: {
+      background: '#fee2e2',
+      border: '1px solid #fecaca',
+      borderRadius: '0.5rem',
+      padding: '1rem',
+      marginBottom: '1rem'
+    },
+    crisisText: {
+      color: '#991b1b',
+      fontWeight: '500',
+      marginBottom: '0.5rem'
+    },
+    crisisLinks: {
+      display: 'flex',
+      gap: '1rem',
+      fontSize: '0.875rem'
+    },
+    crisisLink: {
+      color: '#1e40af',
+      textDecoration: 'none'
     },
     disclaimer: {
-      padding: '0.75rem',
       textAlign: 'center',
-      borderTop: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-      background: darkMode ? 'rgba(31,31,31,0.8)' : 'rgba(255,255,255,0.8)',
       fontSize: '0.75rem',
-      color: darkMode ? '#9ca3af' : '#6b7280',
-      lineHeight: '1.5'
-    },
-    wordCount: {
-      fontSize: '0.875rem',
-      color: darkMode ? '#9ca3af' : '#6b7280',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.5rem'
-    },
-    savedIndicator: {
-      position: 'fixed',
-      top: '1rem',
-      right: '1rem',
-      padding: '0.75rem 1.5rem',
-      background: '#10b981',
-      color: 'white',
-      borderRadius: '0.5rem',
-      fontSize: '0.875rem',
-      fontWeight: '600',
-      opacity: savedIndicator ? 1 : 0,
-      transition: 'opacity 0.3s',
-      pointerEvents: 'none',
-      zIndex: 1000
-    },
-    actionButtons: {
-      display: 'flex',
-      gap: '0.5rem'
-    },
-    iconButton: {
-      padding: '0.5rem',
-      background: 'transparent',
-      color: darkMode ? '#9ca3af' : '#6b7280',
-      border: 'none',
-      cursor: 'pointer',
-      fontSize: '1.25rem',
-      transition: 'all 0.2s',
-      borderRadius: '0.375rem'
+      color: darkMode ? '#6b7280' : '#9ca3af',
+      marginTop: '2rem'
     }
   }
 
@@ -577,337 +476,200 @@ export default function Home() {
     <>
       <style jsx global>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { overflow: hidden; }
-        
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-        
-        .journal-textarea:focus {
-          border-color: ${getCurrentCharacter().color} !important;
-          box-shadow: 0 0 0 3px ${getCurrentCharacter().color}22 !important;
-        }
-        
-        .hover-lift:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.1);
-        }
-        
-        ::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-          background: ${darkMode ? '#374151' : '#f3f4f6'};
-        }
-        
-        ::-webkit-scrollbar-thumb {
-          background: ${darkMode ? '#4b5563' : '#d1d5db'};
-          border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-          background: ${darkMode ? '#6b7280' : '#9ca3af'};
-        }
+        body { margin: 0; }
       `}</style>
       
       <main style={styles.main}>
         <div style={styles.container}>
-          {/* Top Navigation */}
-          <nav style={styles.topNav}>
+          <header style={styles.header}>
             <h1 style={styles.logo}>Mindbloss</h1>
-            
-            <div style={styles.modeSelector}>
-              <button
-                style={styles.modeTab(aiMode === 'reflection')}
-                onClick={() => setAiMode('reflection')}
-              >
-                Reflection
-              </button>
-              <button
-                style={styles.modeTab(aiMode === 'chat')}
-                onClick={() => setAiMode('chat')}
-              >
-                Chat
-              </button>
-              <button
-                style={styles.modeTab(aiMode === 'resources')}
-                onClick={() => setAiMode('resources')}
-              >
-                Resources
-              </button>
+            <button
+              onClick={() => {
+                setDarkMode(!darkMode)
+                localStorage.setItem('darkMode', !darkMode)
+              }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                fontSize: '1.5rem',
+                cursor: 'pointer',
+                position: 'absolute',
+                top: '2rem',
+                right: '2rem'
+              }}
+            >
+              {darkMode ? '☀️' : '🌙'}
+            </button>
+          </header>
+
+          {showCrisisResources && (
+            <div style={styles.crisisBanner}>
+              <p style={styles.crisisText}>
+                You don't have to go through this alone. Help is available:
+              </p>
+              <div style={styles.crisisLinks}>
+                <a href="tel:988" style={styles.crisisLink}>📞 Call 988</a>
+                <a href="sms:741741" style={styles.crisisLink}>💬 Text HOME to 741741</a>
+              </div>
             </div>
-            
-            <div style={styles.actionButtons}>
-              <button 
-                onClick={() => {
-                  setDarkMode(!darkMode)
-                  localStorage.setItem('darkMode', !darkMode)
-                }} 
-                style={styles.iconButton}
-                title="Toggle dark mode"
-              >
-                {darkMode ? '☀️' : '🌙'}
-              </button>
-              <button 
-                onClick={exportData} 
-                style={styles.iconButton}
-                title="Export data"
-              >
-                💾
-              </button>
-            </div>
-          </nav>
-          
-          <div style={styles.mainContent}>
-            {/* Center Column */}
-            <div style={styles.centerColumn}>
-              {/* Hero Section - Only shows first time */}
-              {showOnboarding && (
-                <div style={styles.heroSection}>
-                  <h2 style={styles.heroTitle}>
-                    Turn tangled thoughts into calm next steps
-                  </h2>
-                  <p style={styles.heroSubtitle}>
-                    Evidence-based journaling that actually helps
-                  </p>
-                  <p style={styles.heroProof}>
-                    Guided check-ins using CBT/ACT prompts, mood trends, and weekly recaps
-                  </p>
-                  <button
-                    onClick={() => {
-                      setShowOnboarding(false)
-                      localStorage.setItem('hasSeenOnboarding', 'true')
-                    }}
-                    style={{...styles.primaryButton, margin: '0 auto'}}
-                  >
-                    Start Your First Entry
-                  </button>
+          )}
+
+          {stage === 'welcome' && (
+            <>
+              <div style={styles.card}>
+                <div style={styles.moodSection}>
+                  <label style={styles.moodLabel}>
+                    How are you feeling right now?
+                  </label>
+                  <div style={styles.moodValue}>{mood}/10</div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    value={mood}
+                    onChange={(e) => setMood(Number(e.target.value))}
+                    style={styles.moodSlider}
+                  />
                 </div>
-              )}
-              
-              {/* Template Selection */}
-              {!showOnboarding && (
-                <div style={styles.templateGrid}>
-                  {Object.entries(templates).map(([key, template]) => (
+
+                <label style={styles.moodLabel}>
+                  Which emotions are strongest?
+                </label>
+                <div style={styles.emotionGrid}>
+                  {emotionOptions.map(emotion => (
                     <button
-                      key={key}
+                      key={emotion}
                       onClick={() => {
-                        setCurrentTemplate(key)
-                        setEntry(template.prompt)
+                        if (selectedEmotions.includes(emotion)) {
+                          setSelectedEmotions(selectedEmotions.filter(e => e !== emotion))
+                        } else {
+                          setSelectedEmotions([...selectedEmotions, emotion])
+                        }
                       }}
-                      style={styles.templateCard(currentTemplate === key)}
-                      className="hover-lift"
+                      style={styles.emotionChip(selectedEmotions.includes(emotion))}
                     >
-                      <span>{template.icon}</span>
-                      <span>{template.name}</span>
+                      {emotion}
                     </button>
                   ))}
                 </div>
-              )}
-              
-              {/* Character Selection */}
-              {!showOnboarding && (
-                <div style={styles.characterSelector}>
-                  <p style={styles.characterLabel}>
-                    <span>{getCurrentCharacter().emoji}</span>
-                    Today's guide:
-                  </p>
-                  <div style={styles.characterGrid}>
-                    {Object.values(characters).map(character => (
-                      <button
-                        key={character.id}
-                        onClick={() => {
-                          setSelectedCharacter(character.id)
-                          localStorage.setItem('preferredCharacter', character.id)
-                        }}
-                        style={{
-                          ...styles.characterCard,
-                          border: selectedCharacter === character.id 
-                            ? `2px solid ${character.color}` 
-                            : darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-                          background: selectedCharacter === character.id
-                            ? `${character.color}15`
-                            : darkMode ? '#262626' : 'white'
-                        }}
-                        className="hover-lift"
-                      >
-                        <span style={{fontSize: '1.5rem'}}>{character.emoji}</span>
-                        <div>
-                          <div style={{fontWeight: '600', fontSize: '0.9rem', color: darkMode ? '#f3f4f6' : '#111827'}}>
-                            {character.displayName}
-                          </div>
-                          <div style={{fontSize: '0.75rem', opacity: 0.7}}>
-                            {character.tagline}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
+
+                <button
+                  onClick={startProtocol}
+                  style={styles.primaryButton}
+                  disabled={selectedEmotions.length === 0}
+                >
+                  Start Guided Check-In (2-3 min)
+                </button>
+              </div>
+            </>
+          )}
+
+          {stage === 'protocol' && activeGuide && activeProtocol && (
+            <>
+              <div style={styles.guideCard}>
+                <span style={styles.guideEmoji}>{activeGuide.emoji}</span>
+                <div style={styles.guideInfo}>
+                  <div style={styles.guideName}>{activeGuide.displayName}</div>
+                  <div style={styles.guideTagline}>
+                    {activeProtocol.name} • {activeProtocol.duration}
                   </div>
                 </div>
-              )}
-              
-              {/* Journal Card */}
-              <div style={styles.journalCard}>
-                {/* Mood Tracker */}
-                <div style={styles.moodSection}>
-                  <label style={{fontSize: '0.875rem', fontWeight: '600', color: darkMode ? '#d1d5db' : '#4b5563'}}>
-                    Current mood: {moodValue}/10
-                  </label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    value={moodValue}
-                    onChange={(e) => setMoodValue(e.target.value)}
-                    style={styles.moodSlider}
-                  />
+              </div>
+
+              <div style={styles.card}>
+                <div style={styles.stepProgress}>
+                  {activeProtocol.steps.map((_, index) => (
+                    <div
+                      key={index}
+                      style={styles.stepDot(index <= protocolStep)}
+                    />
+                  ))}
+                </div>
+
+                <div style={styles.protocolStep}>
+                  <p style={styles.promptText}>
+                    {activeProtocol.steps[protocolStep].prompt}
+                  </p>
                   
-                  <div style={{marginTop: '1rem'}}>
-                    <label style={{fontSize: '0.875rem', fontWeight: '600', color: darkMode ? '#d1d5db' : '#4b5563'}}>
-                      Feeling:
-                    </label>
-                    <div style={styles.emotionChips}>
-                      {emotions.map(emotion => (
+                  {activeProtocol.steps[protocolStep].type === 'text' && (
+                    <textarea
+                      value={currentResponse}
+                      onChange={(e) => setCurrentResponse(e.target.value)}
+                      style={styles.textarea}
+                      placeholder="Take your time..."
+                      autoFocus
+                    />
+                  )}
+                  
+                  {activeProtocol.steps[protocolStep].type === 'chips' && (
+                    <div style={styles.optionGrid}>
+                      {activeProtocol.steps[protocolStep].options.map(option => (
                         <button
-                          key={emotion}
-                          onClick={() => {
-                            if (selectedEmotions.includes(emotion)) {
-                              setSelectedEmotions(selectedEmotions.filter(e => e !== emotion))
-                            } else {
-                              setSelectedEmotions([...selectedEmotions, emotion])
-                            }
-                          }}
-                          style={styles.emotionChip(selectedEmotions.includes(emotion))}
+                          key={option}
+                          onClick={() => setCurrentResponse(option)}
+                          style={styles.optionButton(currentResponse === option)}
                         >
-                          {emotion}
+                          {option}
                         </button>
                       ))}
                     </div>
-                  </div>
+                  )}
+                  
+                  {activeProtocol.steps[protocolStep].type === 'choice' && (
+                    <div style={styles.optionGrid}>
+                      {activeProtocol.steps[protocolStep].options.map(option => (
+                        <button
+                          key={option}
+                          onClick={() => setCurrentResponse(option)}
+                          style={styles.optionButton(currentResponse === option)}
+                        >
+                          {option}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={handleProtocolNext}
+                  style={styles.primaryButton}
+                  disabled={!currentResponse || isLoading}
+                >
+                  {isLoading ? 'Processing...' : 
+                   protocolStep < activeProtocol.steps.length - 1 ? 'Next' : 'Complete'}
+                </button>
+              </div>
+            </>
+          )}
+
+          {stage === 'complete' && (
+            <>
+              <div style={styles.guideCard}>
+                <span style={styles.guideEmoji}>{activeGuide.emoji}</span>
+                <div style={styles.guideInfo}>
+                  <div style={styles.guideName}>{activeGuide.displayName}</div>
+                  <div style={styles.guideTagline}>Protocol complete</div>
+                </div>
+              </div>
+
+              <div style={styles.card}>
+                <h2 style={{marginBottom: '1rem', color: darkMode ? '#fff' : '#111'}}>
+                  Your Reflection
+                </h2>
+                <div style={styles.analysisCard}>
+                  <p style={styles.analysisText}>{analysis}</p>
                 </div>
                 
-                <form onSubmit={handleSubmit} style={{display: 'flex', flexDirection: 'column', flex: 1}}>
-                  <textarea
-                    value={entry}
-                    onChange={(e) => setEntry(e.target.value)}
-                    style={styles.textarea}
-                    className="journal-textarea"
-                    placeholder={
-                      aiMode === 'reflection' 
-                        ? "What happened? How did it make you feel? What do you need?"
-                        : aiMode === 'chat'
-                        ? "What's on your mind?"
-                        : "What challenge can I help with?"
-                    }
-                    required
-                  />
-                  
-                  <div style={styles.buttonRow}>
-                    <span style={styles.wordCount}>
-                      {savedIndicator && '✓ Saved'} {entry.length} characters
-                    </span>
-                    <div style={{display: 'flex', gap: '0.75rem'}}>
-                      <button
-                        type="button"
-                        onClick={handleQuickReframe}
-                        style={styles.secondaryButton}
-                        disabled={!entry.trim()}
-                      >
-                        Quick Reframe
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isLoading || !entry.trim()}
-                        style={styles.primaryButton}
-                      >
-                        {isLoading ? 'Processing...' : `Talk to ${getCurrentCharacter().displayName}`}
-                      </button>
-                    </div>
-                  </div>
-                </form>
+                <button onClick={reset} style={styles.primaryButton}>
+                  Start New Check-In
+                </button>
               </div>
-              
-              {/* Response */}
-              {showAnalysis && (
-                <div style={styles.responseCard}>
-                  <h3 style={styles.responseTitle}>
-                    <span>{getCurrentCharacter().emoji}</span>
-                    {getCurrentCharacter().displayName} says:
-                  </h3>
-                  <div style={styles.responseText}>{analysis}</div>
-                </div>
-              )}
-            </div>
-            
-            {/* Sidebar */}
-            <div style={styles.sidebar}>
-              <div style={styles.sidebarToggle} onClick={() => setSidebarOpen(!sidebarOpen)}>
-                {sidebarOpen ? '→' : '←'}
-              </div>
-              
-              {sidebarOpen && (
-                <>
-                  <button
-                    onClick={generateWeeklyRecap}
-                    style={{
-                      width: '100%',
-                      padding: '0.875rem',
-                      marginBottom: '1.5rem',
-                      background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '0.5rem',
-                      fontSize: '0.875rem',
-                      fontWeight: '600',
-                      cursor: entries.length === 0 ? 'not-allowed' : 'pointer',
-                      opacity: entries.length === 0 ? 0.5 : 1
-                    }}
-                    disabled={entries.length === 0}
-                  >
-                    📊 Weekly Recap (with Sage)
-                  </button>
-                  
-                  <h3 style={{fontSize: '0.875rem', fontWeight: '600', marginBottom: '1rem', color: darkMode ? '#d1d5db' : '#4b5563'}}>
-                    Recent Entries
-                  </h3>
-                  
-                  {entries.length > 0 ? (
-                    entries.slice(0, 10).map((entry) => (
-                      <div key={entry.id} style={styles.entryCard} className="hover-lift">
-                        <div style={{fontSize: '0.75rem', opacity: 0.7, marginBottom: '0.25rem'}}>
-                          {entry.timestamp} • Mood: {entry.mood}/10
-                          {entry.character && ` • ${characters[entry.character]?.emoji || ''}`}
-                        </div>
-                        <div>{entry.text.substring(0, 80)}...</div>
-                        {entry.emotions && entry.emotions.length > 0 && (
-                          <div style={{fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.7}}>
-                            {entry.emotions.join(', ')}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{textAlign: 'center', opacity: 0.5, fontSize: '0.875rem'}}>
-                      Your entries will appear here
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-          
-          <div style={styles.disclaimer}>
-            Not a substitute for professional therapy • 
-            Crisis support: <a href="tel:988" style={{color: '#8b5cf6'}}> 988</a> (US) | 
-            <a href="https://www.crisistextline.org" style={{color: '#8b5cf6'}}> Text HOME to 741741</a>
-          </div>
-        </div>
-        
-        <div style={styles.savedIndicator}>
-          ✓ Entry saved
+            </>
+          )}
+
+          <p style={styles.disclaimer}>
+            Not a substitute for professional therapy • Self-help tool only
+          </p>
         </div>
       </main>
     </>
